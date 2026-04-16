@@ -1,0 +1,29 @@
+@startuml C4_Containers_Analytics
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Аналитическая платформа "Медикаменте" - Privacy by Design
+
+Person(analyst, "Бизнес-аналитик", "Строит отчеты")
+Person(ds, "Data Scientist", "Разрабатывает ML-модели")
+
+System_Boundary(analytics_platform, "Privacy-Preserving Analytics Platform") {
+    Container(data_lake, "Data Lake", "S3 / MinIO", "Хранит сырые и обработанные данные")
+    Container(pipeline, "Pipeline (Airflow/Spark)", "Python", "Деидентификация, трансформация данных")
+    Container(policy_engine, "Access Policy Engine", "Apache Ranger", "Управляет доступом к данным на основе тегов")
+    Container(bi_tool, "BI Tool", "Apache Superset", "Визуализация агрегированных данных")
+    Container(ds_env, "JupyterHub", "Kubernetes", "Изолированная среда для DS")
+}
+
+Container_Ext(emis_db, "Operational DB (PostgreSQL)", "Источник PII и медицинских данных")
+Container_Ext(audit_log, "Audit Logs", "Elasticsearch", "Журналы доступа")
+
+Rel(analyst, bi_tool, "Просмотр отчетов", "HTTPS")
+Rel(ds, ds_env, "Работа с ноутбуками", "HTTPS")
+Rel(emis_db, pipeline, "Чтение изменений (CDC)", "TLS, с аутентификацией")
+Rel(pipeline, data_lake, "Запись деидентифицированных данных")
+Rel(policy_engine, data_lake, "Применение политик доступа")
+Rel(ds_env, data_lake, "Чтение данных для обучения", "Контролируется policy_engine")
+Rel(bi_tool, data_lake, "Запросы к Curated Zone", "Контролируется policy_engine")
+Rel(pipeline, audit_log, "Логирование операций")
+
+@enduml
