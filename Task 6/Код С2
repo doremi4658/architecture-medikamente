@@ -1,0 +1,49 @@
+@startuml C4_Containers_Classification_Engine
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_TOP_DOWN()
+
+title Data Classification Engine - Контейнеры
+
+Person(analyst, "Data Analyst", "Работает с очищенными данными")
+Person(ds, "Data Scientist", "Обучает модели на деидентифицированных данных")
+
+System_Ext(source_systems, "Источники данных", "Оперативные БД, файловые выгрузки, API")
+
+System_Boundary(classification_layer, "Data Classification Layer") {
+    Container(ingestion_api, "Ingestion API", "Python/FastAPI", "Принимает пакеты данных от источников")
+    Container(classifier, "Classification Service", "Python/SpaCy/Presidio", "Анализирует содержимое и определяет классы чувствительности")
+    Container(policy_engine, "Policy Engine", "OPA", "Применяет правила обработки на основе классификации")
+    Container(transformer, "Transformation Service", "Apache Spark", "Выполняет маскирование/шифрование/обезличивание")
+    Container(metadata_store, "Metadata Store", "PostgreSQL", "Хранит теги, классификации, историю обработки")
+    Container(orchestrator, "Pipeline Orchestrator", "Apache Airflow", "Управляет последовательностью обработки пакетов")
+}
+
+System_Boundary(data_lake, "Data Lake (зонированное хранилище)") {
+    Container(raw_zone, "Raw Zone", "S3/MinIO", "Исходные зашифрованные данные (доступ ограничен)")
+    Container(cleansed_zone, "Cleansed Zone", "S3/MinIO", "Деидентифицированные и очищенные данные")
+    Container(curated_zone, "Curated Zone", "S3/Parquet", "Агрегированные витрины для аналитики")
+    ContainerDb(audit_log, "Audit Logs", "Elasticsearch", "Журналы доступа и изменений")
+}
+
+Container_Ext(vault, "HashiCorp Vault", "Управление ключами шифрования")
+
+Rel(source_systems, ingestion_api, "Отправка пакетов", "HTTPS/TLS")
+Rel(ingestion_api, classifier, "Передача сырых данных", "gRPC")
+Rel(classifier, metadata_store, "Запись результатов классификации", "SQL/TLS")
+Rel(classifier, policy_engine, "Запрос политик обработки", "REST")
+Rel(policy_engine, transformer, "Передача инструкций", "REST")
+Rel(orchestrator, ingestion_api, "Запуск пайплайнов")
+Rel(orchestrator, classifier, "Координация этапов")
+Rel(orchestrator, transformer, "Координация трансформаций")
+Rel(transformer, raw_zone, "Запись сырых данных (зашифрованных)", "S3 API/TLS")
+Rel(transformer, cleansed_zone, "Запись очищенных данных", "S3 API/TLS")
+Rel(transformer, curated_zone, "Запись агрегатов", "S3 API/TLS")
+Rel(transformer, vault, "Получение ключей шифрования", "TLS")
+Rel(analyst, cleansed_zone, "Чтение данных", "S3 API")
+Rel(analyst, curated_zone, "Чтение витрин", "S3 API")
+Rel(ds, cleansed_zone, "Чтение для обучения", "S3 API")
+Rel(classifier, audit_log, "Логирование операций", "HTTPS")
+Rel(transformer, audit_log, "Логирование трансформаций", "HTTPS")
+
+@enduml
