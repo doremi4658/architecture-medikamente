@@ -1,0 +1,125 @@
+@startuml C4_Containers_Medikamente_ToBe
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+
+title Медицинская информационная система "Медикаменте" - Контейнеры (To-Be)
+
+' === Люди ===
+Person(patient, "Пациент", "Запись на приём, просмотр своей медкарты")
+Person(reception, "Сотрудник ресепшена", "Управление записями, регистрация пациентов")
+Person(doctor, "Врач", "Просмотр и редактирование медкарт, назначения")
+Person(cashier, "Кассир", "Приём платежей")
+Person(admin_it, "ИТ-администратор", "Управление системой, аудит безопасности")
+
+' === Внешние системы ===
+System_Ext(lab, "Лаборатория", "Предоставляет результаты анализов по API")
+System_Ext(kkm, "ККМ", "Фискальный регистратор")
+System_Ext(s1c_acc, "1С:Бухгалтерия", "Финансовый и кадровый учёт")
+System_Ext(s1c_trade, "1С:Торговля и склад", "Учёт ТМЦ")
+System_Ext(email_ext, "Внешняя почта", "Уведомления пациентам")
+
+' === Граница системы ===
+System_Boundary(emis, "Единая медицинская информационная система (ЕМИС)") {
+    ' --- Фронтальные компоненты ---
+    Container(web_app, "Web Application", "React", "Портал для сотрудников (ресепшен, врачи, кассиры)")
+    Container(mobile_app, "Mobile App", "React Native", "Мобильное приложение для пациентов")
+    
+    ' --- API шлюз и безопасность ---
+    Container(api_gateway, "API Gateway", "Kong / Envoy", "Единая точка входа, маршрутизация, аутентификация, TLS")
+    Container(idp, "Identity Provider", "Keycloak", "Аутентификация, SSO, MFA, управление пользователями")
+    Container(vault, "Secrets Management", "HashiCorp Vault", "Хранение секретов, ключей шифрования, динамические учётные данные БД")
+    
+    ' --- Бизнес-микросервисы ---
+    Container(appointment_svc, "Appointment Service", "Java Spring", "Управление расписанием и записями на приём")
+    Container(patient_svc, "Patient Service", "Java Spring", "Управление конфиденциальных данными пациентов (PII)")
+    Container(medical_record_svc, "Medical Record Service", "Java Spring", "Ведение медицинских карт, заключений, диагнозов")
+    Container(payment_svc, "Payment Service", "Java Spring", "Обработка платежей, интеграция с ККМ и 1С")
+    Container(consent_svc, "Consent Service", "Java Spring", "Управление согласиями пациентов на обработку данных")
+    Container(integration_svc, "Integration Service", "Java Spring", "Интеграция с лабораторией и внешними системами")
+    
+    ' --- Подсистема классификации и защиты данных ---
+    Container(classification_engine, "Classification Engine", "Python/Presidio", "Автоматическое обнаружение и тегирование конфиденциальных данных")
+    Container(policy_engine, "Policy Engine", "OPA", "Принятие решений о доступе на основе тегов и атрибутов (ABAC)")
+    Container(audit_svc, "Audit Service", "Java/ELK", "Сбор и хранение логов доступа к конфиденциальным данным")
+    
+    ' --- Базы данных и хранилища ---
+    ContainerDb(appointment_db, "Appointment DB", "PostgreSQL", "Данные о расписании и записях")
+    ContainerDb(patient_db, "Patient DB", "PostgreSQL (TDE + столбцовое шифрование)", "Персональные данные пациентов")
+    ContainerDb(medical_db, "Medical DB", "PostgreSQL (шифрование)", "Медицинские данные")
+    ContainerDb(payment_db, "Payment DB", "PostgreSQL", "Данные о транзакциях")
+    ContainerDb(consent_db, "Consent DB", "PostgreSQL", "История согласий")
+    ContainerDb(metadata_db, "Metadata DB", "PostgreSQL", "Теги классификации данных, политики")
+    
+    ' --- Аналитическая платформа ---
+    Container(data_lake, "Data Lake", "MinIO / S3", "Зонированное хранилище сырых и обработанных данных")
+    Container(etl_pipeline, "ETL Pipeline", "Apache Spark / Airflow", "Деидентификация и загрузка данных в Data Lake")
+    Container(bi_tool, "BI Tool", "Apache Superset", "Визуализация отчётов")
+    Container(ds_env, "Data Science Env", "JupyterHub", "Среда для ML-разработки")
+}
+
+' === Взаимодействия ===
+' Пациенты и сотрудники
+Rel(patient, mobile_app, "Использует", "HTTPS")
+Rel(reception, web_app, "Использует", "HTTPS")
+Rel(doctor, web_app, "Использует", "HTTPS")
+Rel(cashier, web_app, "Использует", "HTTPS")
+Rel(admin_it, web_app, "Администрирует", "HTTPS")
+
+' Фронтенд -> API Gateway
+Rel(mobile_app, api_gateway, "API запросы", "HTTPS")
+Rel(web_app, api_gateway, "API запросы", "HTTPS")
+
+' API Gateway -> IdP (аутентификация)
+Rel(api_gateway, idp, "Проверка токенов", "HTTPS")
+
+' API Gateway -> Микросервисы (маршрутизация)
+Rel(api_gateway, appointment_svc, "Маршрутизация", "HTTPS/mTLS")
+Rel(api_gateway, patient_svc, "Маршрутизация", "HTTPS/mTLS")
+Rel(api_gateway, medical_record_svc, "Маршрутизация", "HTTPS/mTLS")
+Rel(api_gateway, payment_svc, "Маршрутизация", "HTTPS/mTLS")
+Rel(api_gateway, consent_svc, "Маршрутизация", "HTTPS/mTLS")
+
+' Сервисы -> БД
+Rel(appointment_svc, appointment_db, "Чтение/запись", "TLS")
+Rel(patient_svc, patient_db, "Чтение/запись", "TLS, с динамическими учётными данными из Vault")
+Rel(medical_record_svc, medical_db, "Чтение/запись", "TLS, Vault")
+Rel(payment_svc, payment_db, "Чтение/запись", "TLS")
+Rel(consent_svc, consent_db, "Чтение/запись", "TLS")
+
+' Интеграции
+Rel(payment_svc, kkm, "Команда печати чека", "VPN/TLS")
+Rel(payment_svc, s1c_acc, "Синхронизация платежей", "TLS через адаптер")
+Rel(integration_svc, lab, "Получение результатов анализов", "mTLS, подпись запросов")
+Rel(integration_svc, medical_record_svc, "Сохранение результатов", "mTLS")
+Rel(appointment_svc, email_ext, "Отправка напоминаний", "SMTPS")
+
+' Privacy by Design компоненты
+Rel(patient_svc, classification_engine, "Классификация при создании/обновлении", "gRPC")
+Rel(medical_record_svc, classification_engine, "Классификация записей", "gRPC")
+Rel(integration_svc, classification_engine, "Классификация входящих данных", "gRPC")
+Rel(classification_engine, metadata_db, "Сохранение тегов", "TLS")
+Rel(classification_engine, vault, "Получение ключей для шифрования полей", "TLS")
+
+' Policy Engine
+Rel(api_gateway, policy_engine, "Проверка доступа (ABAC)", "REST")
+Rel(policy_engine, metadata_db, "Чтение политик и тегов", "TLS")
+
+' Аудит
+Rel(api_gateway, audit_svc, "Логирование запросов", "Async/Kafka")
+Rel(patient_svc, audit_svc, "Логирование доступа к PII", "Async")
+Rel(medical_record_svc, audit_svc, "Логирование доступа к медданным", "Async")
+
+' Vault
+Rel(patient_svc, vault, "Получение учётных данных БД", "TLS")
+Rel(medical_record_svc, vault, "Получение ключей шифрования", "TLS")
+
+' Аналитический слой
+Rel(patient_db, etl_pipeline, "CDC поток", "Debezium")
+Rel(medical_db, etl_pipeline, "CDC поток", "Debezium")
+Rel(etl_pipeline, data_lake, "Загрузка в зоны", "S3 API")
+Rel(data_lake, bi_tool, "Запросы к Curated Zone", "S3 API")
+Rel(data_lake, ds_env, "Доступ к Cleansed Zone", "S3 API, с контролем доступа")
+Rel(bi_tool, admin_it, "Использует", "HTTPS")
+Rel(ds_env, admin_it, "Использует", "HTTPS")
+
+@enduml

@@ -1,0 +1,34 @@
+@startuml C4_Elements
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Система "Медикаменте" - Контекст целевого состояния (To-Be)
+
+Person(patient, "Пациент", "Записывается на прием, управляет своими данными")
+Person(reception, "Сотрудник ресепшена", "Управляет записями и расписанием")
+Person(doctor, "Врач", "Ведет прием, работает с медкартами")
+Person(cashier, "Кассир", "Принимает платежи")
+Person(bookkeeper, "Бухгалтер", "Ведет бухгалтерию")
+Person(warehouse, "Склад", "Управляет ТМЦ")
+
+System_Ext(lab, "Лаборатория", "Предоставляет результаты анализов")
+System_Ext(kkm, "ККМ", "Печать чеков")
+System_Ext(s1c_acc, "1С:Бухгалтерия", "Финансовый и кадровый учет")
+System_Ext(s1c_trade, "1С:Торговля и склад", "Учет ТМЦ")
+
+System_Boundary(medikamente, "Медицинская информационная система «Медикаменте»") {
+    System(emis, "ЕМИС", "Включает порталы, API, сервисы обработки данных, аналитику и подсистему приватности")
+}
+
+Rel(patient, emis, "Использует портал/мобильное приложение", "HTTPS/TLS")
+Rel(reception, emis, "Работает с записями, пациентами", "HTTPS")
+Rel(doctor, emis, "Просматривает и редактирует медкарты", "HTTPS")
+Rel(cashier, emis, "Вносит платежи", "HTTPS")
+Rel(emis, kkm, "Команда печати чека", "VPN/TLS")
+Rel(bookkeeper, s1c_acc, "Ведет учет", "локально")
+Rel(warehouse, s1c_trade, "Учет ТМЦ", "локально")
+Rel(emis, s1c_acc, "Синхронизация платежей", "Защищенный канал")
+Rel(emis, s1c_trade, "Синхронизация закупок", "Защищенный канал")
+Rel(emis, lab, "Получение результатов", "mTLS API")
+Rel(emis, "Регулятор", "Предоставление отчетов по запросу", "Защищенный канал")
+
+@enduml
